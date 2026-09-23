@@ -1,0 +1,13 @@
+project     = "crud-app"
+environment = "dev"
+aws_region  = "ca-central-1"
+
+# AWS free plan account (RDS Proxy unavailable, backups capped at 1 day)
+# db_proxy_enabled         = false
+# db_backup_retention_days = 1
+
+# Production hardening
+# db_multi_az          = true
+# deletion_protection  = true
+# db_instance_class    = "db.t4g.small"
+# force_destroy_bucket = false

@@ -1,0 +1,49 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+.build/
+coverage/
+.vite/
+*.tsbuildinfo
+
+# Terraform: state holds the DB password and resource IDs; plans can too
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+tfplan
+plan.txt
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+# Per-environment values; commit only the example
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+
+# Secrets / env files (backend/dev/local.env holds only local Docker creds and is committed)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor / OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Claude Code per-user settings
+.claude/settings.local.json

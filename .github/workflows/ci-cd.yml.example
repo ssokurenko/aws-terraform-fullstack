@@ -1,0 +1,130 @@
+# Starter CI/CD pipeline (GitHub Actions). Rename to ci-cd.yml once the
+# prerequisites in README "CI/CD roadmap -> Phase 1" are in place:
+#   - remote Terraform state (S3 backend in infra/versions.tf)
+#   - IAM role trusted by GitHub OIDC, ARN stored as repo variable AWS_DEPLOY_ROLE_ARN
+#   - GitHub environment "dev" (add required reviewers for staging/prod later)
+
+name: ci-cd
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  id-token: write # OIDC -> short-lived AWS credentials, no access keys in secrets
+  contents: read
+  pull-requests: write
+
+env:
+  AWS_REGION: ca-central-1
+  TF_IN_AUTOMATION: "true"
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false # never cancel a running terraform apply
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+      - name: Test and build backend
+        working-directory: backend
+        run: npm ci && npm test && npm run build
+      - name: Build frontend
+        working-directory: frontend
+        run: npm ci && npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: build
+          path: |
+            backend/dist
+            frontend/dist
+
+  plan:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: build
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.15"
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Format and validate
+        working-directory: infra
+        run: |
+          terraform fmt -check -recursive
+          terraform init -input=false
+          terraform validate
+          terraform test
+      - name: Plan
+        working-directory: infra
+        run: terraform plan -input=false -no-color -out=tfplan | tee plan.txt
+      - name: Comment plan on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const plan = require('fs').readFileSync('infra/plan.txt', 'utf8');
+            const body = '### Terraform plan (dev)\n```\n' + plan.slice(-60000) + '\n```';
+            await github.rest.issues.createComment({ ...context.repo, issue_number: context.issue.number, body });
+      - uses: actions/upload-artifact@v4
+        if: github.ref == 'refs/heads/main'
+        with:
+          name: tfplan
+          path: infra/tfplan
+
+  deploy:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: plan
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: build
+      - uses: actions/download-artifact@v4
+        with:
+          name: tfplan
+          path: infra
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.15"
+          terraform_wrapper: false # so `terraform output -raw` returns clean values
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Apply the reviewed plan
+        working-directory: infra
+        run: |
+          terraform init -input=false
+          terraform apply -input=false tfplan
+      - name: Publish SPA
+        run: |
+          BUCKET=$(terraform -chdir=infra output -raw web_bucket)
+          DIST_ID=$(terraform -chdir=infra output -raw cloudfront_distribution_id)
+          aws s3 sync frontend/dist "s3://$BUCKET" --delete \
+            --exclude index.html --cache-control "public,max-age=31536000,immutable"
+          aws s3 cp frontend/dist/index.html "s3://$BUCKET/index.html" --cache-control "no-cache"
+          aws cloudfront create-invalidation --distribution-id "$DIST_ID" --paths "/index.html"
+      - name: Smoke test
+        run: |
+          URL=$(terraform -chdir=infra output -raw api_url_via_cloudfront)
+          curl -fsS "$URL" > /dev/null && echo "API OK"

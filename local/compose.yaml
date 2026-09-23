@@ -1,0 +1,45 @@
+# Local stand-ins for the AWS data services. No AWS account needed.
+#   Postgres 17  -> RDS PostgreSQL (dev server connects with a password instead of RDS Proxy + IAM)
+#   MinIO        -> S3 (supports presigned POST policies incl. content-length-range)
+#
+# MinIO's community edition is in maintenance mode and no longer publishes new images;
+# the last published image is fine for local-only use. Any S3-compatible emulator that
+# supports POST policies works: point S3_ENDPOINT in backend/dev/local.env at it.
+#
+# NOT REAL SECRETS: the credentials below are fixed placeholders for throwaway local
+# containers bound to 127.0.0.1. They are committed on purpose and must match
+# backend/dev/local.env. Never reuse them anywhere else.
+name: crud-local
+
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: app
+      POSTGRES_USER: app_admin
+      POSTGRES_PASSWORD: localdev # local-only placeholder, not a secret
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app_admin -d app"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  s3:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: localdev
+      MINIO_ROOT_PASSWORD: localdev-secret # local-only placeholder, not a secret
+    ports:
+      - "127.0.0.1:9000:9000" # S3 API (browser uploads go here)
+      - "127.0.0.1:9001:9001" # web console: http://localhost:9001
+    volumes:
+      - s3data:/data
+
+volumes:
+  pgdata:
+  s3data:
