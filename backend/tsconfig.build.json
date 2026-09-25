@@ -1,0 +1,14 @@
+{
+  // Lambda build: src/**/*.ts -> build/**/*.js, one file per source file, readable ESM.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "rootDir": "src",
+    "outDir": "build",
+    "removeComments": false,
+    "declaration": false,
+    "sourceMap": false,
+    "newLine": "lf"
+  },
+  "include": ["src"]
+}

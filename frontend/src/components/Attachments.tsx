@@ -1,17 +1,24 @@
-import { useEffect, useRef, useState } from 'react';
-import { api, IMAGE_TYPES } from './api.js';
+import { useEffect, useRef, useState, type ChangeEvent } from 'react';
+import { api, IMAGE_TYPES } from '../api';
+import type { Attachment } from '../types';
 
-export default function Attachments({ itemId, onChange }) {
-  const [images, setImages] = useState([]);
+interface Props {
+  itemId: string;
+  onChange?: () => void;
+}
+
+/** Image gallery of one item, with upload and delete. */
+export default function Attachments({ itemId, onChange }: Props) {
+  const [images, setImages] = useState<Attachment[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const input = useRef(null);
+  const input = useRef<HTMLInputElement>(null);
 
   const load = async () => {
     try {
       setImages(await api.listAttachments(itemId));
     } catch (e) {
-      setError(e.message);
+      setError((e as Error).message);
     }
   };
 
@@ -19,7 +26,7 @@ export default function Attachments({ itemId, onChange }) {
     load();
   }, [itemId]);
 
-  const onFile = async (e) => {
+  const onFile = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
@@ -30,19 +37,19 @@ export default function Attachments({ itemId, onChange }) {
       await load();
       onChange?.();
     } catch (err) {
-      setError(err.message);
+      setError((err as Error).message);
     } finally {
       setBusy(false);
     }
   };
 
-  const remove = async (id) => {
+  const remove = async (id: string) => {
     try {
       await api.removeAttachment(id);
       await load();
       onChange?.();
     } catch (err) {
-      setError(err.message);
+      setError((err as Error).message);
     }
   };
 
@@ -51,8 +58,8 @@ export default function Attachments({ itemId, onChange }) {
       <div className="gallery">
         {images.map((img) => (
           <figure key={img.id}>
-            <a href={img.url} target="_blank" rel="noreferrer">
-              <img src={img.url} alt={img.fileName} loading="lazy" />
+            <a href={img.url ?? undefined} target="_blank" rel="noreferrer">
+              <img src={img.url ?? undefined} alt={img.fileName} loading="lazy" />
             </a>
             <figcaption>
               <span title={img.fileName}>{img.fileName}</span>

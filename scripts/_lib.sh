@@ -30,6 +30,50 @@ __pause() {
   fi
 }
 
+# Selects the stack to work on. Usage: use_stack "<stack>"  (needs ROOT and TF set)
+# A stack is one deployed instance of the app, named "<project>-<environment>":
+#   infra/stacks/<stack>.tfvars     its settings
+#   Terraform workspace <stack>     its state (infra/terraform.tfstate.d/<stack>/)
+# Sets STACK and VAR_FILE (relative to infra/) and exports TF_WORKSPACE, so every later
+# terraform command in the script works on this stack's state only.
+use_stack() {
+  local name="${1:-}"
+  unset TF_WORKSPACE
+  if [ -z "$name" ] || [[ "$name" == -* ]] || [ ! -f "$ROOT/infra/stacks/$name.tfvars" ]; then
+    [ -n "$name" ] && [[ "$name" != -* ]] && echo "No settings file infra/stacks/$name.tfvars." >&2
+    echo "Usage: $(basename "${BASH_SOURCE[1]}") <stack> [terraform options]" >&2
+    echo "Stacks (infra/stacks/*.tfvars):" >&2
+    local f found=""
+    for f in "$ROOT"/infra/stacks/*.tfvars; do
+      [ -f "$f" ] && { found=1; echo "  $(basename "$f" .tfvars)" >&2; }
+    done
+    [ -z "$found" ] && echo "  (none) create one: cp infra/stacks/example.tfvars.example infra/stacks/<project>-<environment>.tfvars" >&2
+    return 2
+  fi
+  if [ -f "$ROOT/infra/terraform.tfvars" ]; then
+    echo "infra/terraform.tfvars is loaded into every stack. Move its settings into infra/stacks/<stack>.tfvars and delete it." >&2
+    return 2
+  fi
+  if [ -s "$ROOT/infra/terraform.tfstate" ] && grep -q '"mode": "managed"' "$ROOT/infra/terraform.tfstate"; then
+    echo "infra/terraform.tfstate holds a stack deployed before per-stack state. Move it into its own workspace first:" >&2
+    echo "  terraform -chdir=infra workspace new <stack>" >&2
+    echo "  TF_WORKSPACE=<stack> terraform -chdir=infra state push terraform.tfstate" >&2
+    echo "  TF_WORKSPACE=<stack> terraform -chdir=infra state list    # check it's all there" >&2
+    echo "  mv infra/terraform.tfstate infra/terraform.tfstate.migrated" >&2
+    return 2
+  fi
+
+  $TF init -input=false >/dev/null
+  if ! $TF workspace list | sed 's/^[* ]*//' | grep -qx "$name"; then
+    echo "==> New stack \"$name\": creating its Terraform workspace"
+    $TF workspace new "$name" >/dev/null
+  fi
+  STACK="$name"
+  VAR_FILE="stacks/$name.tfvars"
+  export TF_WORKSPACE="$name"
+  echo "==> Stack: $STACK (settings: infra/$VAR_FILE)"
+}
+
 trap '__on_err "$LINENO" "$BASH_COMMAND"' ERR
 trap '__pause' EXIT
 

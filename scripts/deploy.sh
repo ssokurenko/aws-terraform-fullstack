@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
-# Full deploy: build services -> terraform apply -> build SPA -> upload -> invalidate.
-# Usage: ./scripts/deploy.sh [-auto-approve]
+# Full deploy of one stack: build services -> terraform apply -> build SPA -> upload -> invalidate.
+# Usage: ./scripts/deploy.sh <stack> [-auto-approve]
+#   <stack> = <project>-<environment>, settings in infra/stacks/<stack>.tfvars.
+#   A new name deploys a new, separate instance with its own state; existing stacks are untouched.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 source "$ROOT/scripts/_lib.sh"
 TF="terraform -chdir=$ROOT/infra"
+use_stack "${1:-}" || exit 2
+shift
 
 # npm ci needs a lockfile; the first run creates one with npm install (commit it).
 npm_install() { if [ -f package-lock.json ]; then npm ci; else npm install; fi; }
@@ -12,9 +16,8 @@ npm_install() { if [ -f package-lock.json ]; then npm ci; else npm install; fi; 
 echo "==> Building Lambda services (items, attachments)"
 (cd "$ROOT/backend" && npm_install && npm run build)
 
-echo "==> Terraform apply"
-$TF init -input=false
-$TF apply "$@"
+echo "==> Terraform apply ($STACK)"
+$TF apply -var-file="$VAR_FILE" "$@"
 
 BUCKET=$($TF output -raw web_bucket)
 DIST_ID=$($TF output -raw cloudfront_distribution_id)
@@ -41,4 +44,4 @@ echo "==> Check the created resources in the AWS console (Resource Group, tags: 
 echo "    $RG_URL"
 echo "    Lists this region's resources; CloudFront and IAM roles are global and not shown there."
 echo
-echo "Done: $APP_URL"
+echo "Done ($STACK): $APP_URL"

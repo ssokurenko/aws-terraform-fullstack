@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# Tear down everything deploy.sh created.
-# Usage: ./scripts/destroy.sh            (asks for confirmation)
-#        ./scripts/destroy.sh -auto-approve
+# Tear down everything deploy.sh created for one stack. Other stacks are untouched.
+# Usage: ./scripts/destroy.sh <stack>                (asks for confirmation)
+#        ./scripts/destroy.sh <stack> -auto-approve
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 source "$ROOT/scripts/_lib.sh"
 TF="terraform -chdir=$ROOT/infra"
-
-$TF init -input=false >/dev/null
+use_stack "${1:-}" || exit 2
+shift
 
 if ! $TF state list >/dev/null 2>&1 || [ -z "$($TF state list 2>/dev/null)" ]; then
-  echo "Nothing in Terraform state. Nothing to destroy."
+  echo "Stack $STACK has nothing in its Terraform state. Nothing to destroy."
   exit 0
 fi
 
@@ -33,7 +33,7 @@ if [ -n "${DB_ID:-}" ]; then
 fi
 if [ "$PROTECTED" = "True" ]; then
   echo "RDS instance $DB_ID has deletion protection on."
-  echo "Set deletion_protection = false in terraform.tfvars, run ./scripts/deploy.sh, then retry."
+  echo "Set deletion_protection = false in infra/$VAR_FILE, run ./scripts/deploy.sh $STACK, then retry."
   exit 1
 fi
 
@@ -48,8 +48,8 @@ done
 
 # 4. Destroy. Expect 15-30 min: CloudFront disable, RDS delete, and Lambda VPC
 #    network interfaces (they release a while after the function is gone).
-echo "==> terraform destroy"
-$TF destroy "$@"
+echo "==> terraform destroy ($STACK)"
+$TF destroy -var-file="$VAR_FILE" "$@"
 
 # 5. Clean up what RDS created outside Terraform.
 if [ -n "${DB_ID:-}" ]; then
@@ -64,5 +64,9 @@ if [ -n "${DB_ID:-}" ]; then
   fi
 fi
 
-rm -rf "$ROOT/infra/.build"
-echo "Done. All stack resources removed."
+# 6. Drop the now-empty workspace. The settings file stays, so the stack can be redeployed.
+rm -f "$ROOT"/infra/.build/"$STACK"-*.zip
+if (unset TF_WORKSPACE; $TF workspace select default >/dev/null && $TF workspace delete "$STACK" >/dev/null); then
+  echo "Deleted workspace $STACK"
+fi
+echo "Done. All resources of stack $STACK removed (settings kept in infra/$VAR_FILE)."

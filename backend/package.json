@@ -4,9 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node --env-file=dev/local.env --watch dev/server.mjs",
-    "test": "node --test test/*.test.mjs",
-    "build": "esbuild src/items.mjs src/attachments.mjs --bundle --platform=node --target=node22 --format=cjs --minify --sourcemap --external:pg-native --outdir=dist --entry-names=[name]/index"
+    "dev": "node --env-file=dev/local.env --import tsx --watch dev/server.ts",
+    "test": "node --import tsx --test test/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "build": "tsx scripts/build.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.700.0",
@@ -15,6 +16,10 @@
     "pg": "^8.13.0"
   },
   "devDependencies": {
-    "esbuild": "^0.25.0"
+    "@types/aws-lambda": "^8.10.163",
+    "@types/node": "^22.20.4",
+    "@types/pg": "^8.23.1",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
   }
 }

@@ -9,6 +9,10 @@ const target = process.env.VITE_API_ORIGIN;
 
 export default defineConfig({
   plugins: [react()],
+  build: {
+    // Production bundle stays minified; source maps let DevTools show the original .tsx files.
+    sourcemap: true,
+  },
   server: {
     proxy: target
       ? {

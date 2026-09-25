@@ -7,10 +7,10 @@ source "$ROOT/scripts/_lib.sh"
 npm_install() { if [ -f package-lock.json ]; then npm ci; else npm install; fi; }
 step() { echo; echo "==> $*"; }
 
-step "Backend: install, unit tests, bundle"
-(cd "$ROOT/backend" && npm_install >/dev/null && npm test && npm run build)
+step "Backend: install, typecheck, unit tests, build"
+(cd "$ROOT/backend" && npm_install >/dev/null && npm run typecheck && npm test && npm run build)
 
-step "Frontend: install, production build"
+step "Frontend: install, typecheck + production build"
 (cd "$ROOT/frontend" && npm_install >/dev/null && npm run build)
 
 step "Terraform: format, validate, offline tests (mocked providers)"

@@ -17,7 +17,8 @@ mock_provider "aws" {
 # The Lambda zips don't need to exist.
 mock_provider "archive" {}
 
-# Pin anything terraform.tfvars might override, so results don't depend on local settings.
+# Pin the settings a stack file might change, so results don't depend on local settings.
+# Tests run in the "default" workspace, which the stack guard (stack.tf) allows.
 variables {
   project                  = "crud-test"
   environment              = "dev"

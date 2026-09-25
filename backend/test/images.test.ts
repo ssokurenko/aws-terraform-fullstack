@@ -1,9 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { matchesSignature, checkUploadRequest } from '../src/shared/images.mjs';
+import { matchesSignature, checkUploadRequest } from '../src/shared/images.js';
 
 const MAX = 2 * 1024 * 1024;
-const bytes = (...xs) => Uint8Array.from(xs.flatMap((x) => (typeof x === 'string' ? [...x].map((c) => c.charCodeAt(0)) : [x])));
+const bytes = (...xs: (number | string)[]) =>
+  Uint8Array.from(xs.flatMap((x) => (typeof x === 'string' ? [...x].map((c) => c.charCodeAt(0)) : [x])));
 
 test('accepts real signatures', () => {
   assert.ok(matchesSignature('image/jpeg', bytes(0xff, 0xd8, 0xff, 0xe0)));
@@ -21,7 +22,7 @@ test('rejects renamed or mismatched files', () => {
 });
 
 test('upload request: type allowlist', () => {
-  assert.equal(checkUploadRequest({ contentType: 'image/png', size: 1000 }, MAX).type.ext, 'png');
+  assert.equal(checkUploadRequest({ contentType: 'image/png', size: 1000 }, MAX).type?.ext, 'png');
   assert.equal(checkUploadRequest({ contentType: 'image/svg+xml', size: 1000 }, MAX).status, 415);
   assert.equal(checkUploadRequest({ contentType: 'application/pdf', size: 1000 }, MAX).status, 415);
 });

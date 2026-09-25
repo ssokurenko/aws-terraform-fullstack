@@ -3,6 +3,7 @@ node_modules/
 
 # Build output
 dist/
+backend/build/
 .build/
 coverage/
 .vite/
@@ -14,6 +15,7 @@ coverage/
 *.tfstate.*
 *.tfplan
 tfplan
+infra/state-backups/
 plan.txt
 crash.log
 crash.*.log

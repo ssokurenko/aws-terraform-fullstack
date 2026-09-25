@@ -19,6 +19,9 @@ permissions:
 env:
   AWS_REGION: ca-central-1
   TF_IN_AUTOMATION: "true"
+  # Stack this pipeline deploys: settings in infra/stacks/$STACK.tfvars (commit that file
+  # for CI), state in the Terraform workspace of the same name.
+  STACK: crud-app-dev
 
 concurrency:
   group: deploy-${{ github.ref }}
@@ -38,7 +41,7 @@ jobs:
             frontend/package-lock.json
       - name: Test and build backend
         working-directory: backend
-        run: npm ci && npm test && npm run build
+        run: npm ci && npm run typecheck && npm test && npm run build
       - name: Build frontend
         working-directory: frontend
         run: npm ci && npm run build
@@ -74,7 +77,9 @@ jobs:
           terraform test
       - name: Plan
         working-directory: infra
-        run: terraform plan -input=false -no-color -out=tfplan | tee plan.txt
+        run: |
+          terraform workspace select -or-create "$STACK"
+          terraform plan -input=false -no-color -var-file="stacks/$STACK.tfvars" -out=tfplan | tee plan.txt
       - name: Comment plan on PR
         if: github.event_name == 'pull_request'
         uses: actions/github-script@v7
@@ -115,6 +120,7 @@ jobs:
         working-directory: infra
         run: |
           terraform init -input=false
+          terraform workspace select "$STACK"
           terraform apply -input=false tfplan
       - name: Publish SPA
         run: |

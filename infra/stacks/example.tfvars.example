@@ -1,0 +1,23 @@
+# Settings of one stack (one deployed instance of the app).
+# Copy to infra/stacks/<project>-<environment>.tfvars; the file name is the stack name:
+#   cp infra/stacks/example.tfvars.example infra/stacks/crud-app-dev.tfvars
+#   ./scripts/deploy.sh crud-app-dev
+# project and environment must match the file name, and never change after the first deploy
+# (Terraform refuses: see infra/stack.tf). For another instance, add another file.
+project     = "crud-app"
+environment = "dev"
+aws_region  = "ca-central-1"
+
+# Stacks in the same account and region each get their own VPC. The CIDR may repeat
+# (the VPCs aren't connected); change it only if you plan to peer them.
+# vpc_cidr = "10.20.0.0/16"
+
+# AWS free plan account (RDS Proxy unavailable, backups capped at 1 day)
+# db_proxy_enabled         = false
+# db_backup_retention_days = 1
+
+# Production hardening
+# db_multi_az          = true
+# deletion_protection  = true
+# db_instance_class    = "db.t4g.small"
+# force_destroy_bucket = false
